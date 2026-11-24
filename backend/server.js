@@ -9,6 +9,8 @@ import rateLimit from "express-rate-limit";
 import { Product, Category, Order, Setting } from "./models.js";
 import dns from "node:dns";
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
+
+
 const {
   MONGO_URI,
   JWT_SECRET,
@@ -18,15 +20,24 @@ const {
   PORT = 5000,
 } = process.env;
 
+const app = express();
 if (!MONGO_URI || !JWT_SECRET || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
   console.error("Missing env vars. Copy .env.example to .env and fill it in.");
   process.exit(1);
 }
+const allowedOrigins = [
+  "https://autopart-ecommerce.onrender.com",
+  "http://localhost:5173"
+];
 
-const app = express();
-app.set("trust proxy", 1); // needed for correct IPs behind Render/Railway/etc.
+app.set("trust proxy", 1); // neede d for correct IPs behind Render/Railway/etc.
 app.use(helmet());
-app.use(cors({ origin: CLIENT_URL.split(",").map((s) => s.trim()) }));
+app.use(cors({
+  origin: allowedOrigins,
+  credentials: true,
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
+}));
 app.use(express.json({ limit: "1mb" }));
 
 // ---------- helpers ----------
