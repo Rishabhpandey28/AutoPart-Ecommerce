@@ -217,7 +217,7 @@ export default function Contact() {
             <div className="flex h-full min-h-[320px] flex-col items-center justify-center p-8 text-center text-gray-400">
               <MapPin size={40} className="mb-2" />
               <p className="text-sm">
-                Store address will appear here once it is added in Admin → Settings.
+                City : Dewas 455001 Madhya Pradesh
               </p>
             </div>
           )}

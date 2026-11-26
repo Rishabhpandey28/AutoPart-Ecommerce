@@ -6,7 +6,7 @@ import helmet from "helmet";
 import jwt from "jsonwebtoken";
 import mongoose from "mongoose";
 import rateLimit from "express-rate-limit";
-import { Product, Category, Order, Setting } from "./models.js";
+import { Product, Category, Order, Setting, Review } from "./models.js";
 import dns from "node:dns";
 dns.setServers(["8.8.8.8", "1.1.1.1"]);
 
@@ -26,18 +26,38 @@ if (!MONGO_URI || !JWT_SECRET || !ADMIN_EMAIL || !ADMIN_PASSWORD) {
   process.exit(1);
 }
 const allowedOrigins = [
-  "https://autopart-ecommerce.onrender.com",
-  "http://localhost:5173"
+  ...new Set(
+    CLIENT_URL.split(",")
+      .map((url) => url.trim().replace(/\/$/, ""))
+      .filter(Boolean)
+  ),
+  "http://localhost:5173",
 ];
 
-app.set("trust proxy", 1); // neede d for correct IPs behind Render/Railway/etc.
+app.set("trust proxy", 1);
+
 app.use(helmet());
-app.use(cors({
-  origin: allowedOrigins,
-  credentials: true,
-  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
-}));
+
+app.use(
+  cors({
+    origin: (origin, callback) => {
+      // Allow requests without an Origin header (e.g. server-to-server)
+      if (!origin) return callback(null, true);
+
+      const normalizedOrigin = origin.replace(/\/$/, "");
+
+      if (allowedOrigins.includes(normalizedOrigin)) {
+        return callback(null, true);
+      }
+
+      return callback(new Error("Not allowed by CORS"));
+    },
+    credentials: true,
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  })
+);
+
 app.use(express.json({ limit: "1mb" }));
 
 // ---------- helpers ----------
@@ -64,7 +84,13 @@ const auth = (req, res, next) => {
 
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { message: "Too many attempts, try later" } });
 const orderLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, message: { message: "Too many orders, try later" } });
-
+const reviewLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  max: 5,
+  message: {
+    message: "Too many review submissions. Please try again later."
+  }
+});
 const PRODUCT_FIELDS = ["name", "brand", "category", "price", "oldPrice", "stock", "rating", "tag", "image", "images", "description", "isDeal", "dealEndsAt"];
 
 // Pick product fields and tidy the images list (max 8, http(s) urls only).
@@ -147,6 +173,125 @@ app.delete("/api/products/:id", auth, checkId, wrap(async (req, res) => {
   res.json({ ok: true });
 }));
 
+
+// ---------- customer reviews ----------
+
+// GET: Fetch reviews for a product
+app.get("/api/reviews/:productId", wrap(async (req, res) => {
+  const { productId } = req.params;
+
+  if (!mongoose.isValidObjectId(productId)) {
+    return res.status(400).json({ message: "Invalid product ID" });
+  }
+
+  const product = await Product.findById(productId).select("_id");
+
+  if (!product) {
+    return res.status(404).json({ message: "Product not found" });
+  }
+
+  const [reviews, stats] = await Promise.all([
+    Review.find({ product: productId })
+      .sort({ createdAt: -1 })
+      .limit(100)
+      .lean(),
+
+    Review.aggregate([
+      {
+        $match: {
+          product: new mongoose.Types.ObjectId(productId)
+        }
+      },
+      {
+        $group: {
+          _id: null,
+          averageRating: { $avg: "$rating" },
+          totalReviews: { $sum: 1 }
+        }
+      }
+    ])
+  ]);
+
+  res.json({
+    reviews,
+    averageRating: Number((stats[0]?.averageRating || 0).toFixed(1)),
+    totalReviews: stats[0]?.totalReviews || 0
+  });
+}));
+
+// POST: Submit a customer review
+app.post("/api/reviews/:productId", reviewLimiter, wrap(async (req, res) => {
+  const { productId } = req.params;
+  const { customerName, rating, comment } = req.body;
+
+  if (!mongoose.isValidObjectId(productId)) {
+    return res.status(400).json({ message: "Invalid product ID" });
+  }
+
+  const product = await Product.findById(productId).select("_id");
+
+  if (!product) {
+    return res.status(404).json({ message: "Product not found" });
+  }
+
+  const name = typeof customerName === "string"
+    ? customerName.trim()
+    : "";
+
+  const reviewComment = typeof comment === "string"
+    ? comment.trim()
+    : "";
+
+  const reviewRating = Number(rating);
+
+  if (!name || name.length > 100) {
+    return res.status(400).json({
+      message: "Name is required and must be under 100 characters"
+    });
+  }
+
+  if (!Number.isInteger(reviewRating) || reviewRating < 1 || reviewRating > 5) {
+    return res.status(400).json({
+      message: "Rating must be a whole number between 1 and 5"
+    });
+  }
+
+  if (reviewComment.length < 3 || reviewComment.length > 1000) {
+    return res.status(400).json({
+      message: "Review must be between 3 and 1000 characters"
+    });
+  }
+
+  const review = await Review.create({
+    product: productId,
+    customerName: name,
+    rating: reviewRating,
+    comment: reviewComment
+  });
+
+  const stats = await Review.aggregate([
+    {
+      $match: {
+        product: new mongoose.Types.ObjectId(productId)
+      }
+    },
+    {
+      $group: {
+        _id: null,
+        averageRating: { $avg: "$rating" },
+        totalReviews: { $sum: 1 }
+      }
+    }
+  ]);
+
+  res.status(201).json({
+    message: "Review submitted successfully",
+    review,
+    averageRating: Number((stats[0]?.averageRating || 0).toFixed(1)),
+    totalReviews: stats[0]?.totalReviews || 0
+  });
+}));
+
 // ---------- categories ----------
 app.get("/api/categories", wrap(async (_req, res) => {
   const [cats, counts] = await Promise.all([
@@ -181,6 +326,10 @@ app.delete("/api/categories/:id", auth, checkId, wrap(async (req, res) => {
 // Public: called when a customer taps "Order on WhatsApp". Prices come from the DB, not the browser.
 
 
+// ---------- orders ----------
+
+// PUBLIC: Create an order without deducting stock.
+// Stock is deducted only when the admin confirms the order.
 app.post("/api/orders", orderLimiter, wrap(async (req, res) => {
   const {
     customerName,
@@ -193,14 +342,29 @@ app.post("/api/orders", orderLimiter, wrap(async (req, res) => {
     items,
   } = req.body;
 
+  const clean = (value) =>
+    typeof value === "string" ? value.trim() : "";
+
+  const name = clean(customerName);
+  const mobile = clean(phone);
+  const deliveryAddress = clean(address);
+  const deliveryCity = clean(city);
+  const deliveryState = clean(state);
+  const postalCode = String(pincode || "").trim();
+  const orderNote = clean(note);
+
   // Validate customer details
   if (
-    !customerName?.trim() ||
-    !phone?.trim() ||
-    !address?.trim() ||
-    !city?.trim() ||
-    !state?.trim() ||
-    !/^[0-9]{6}$/.test(String(pincode || ""))
+    !name ||
+    name.length > 100 ||
+    !mobile ||
+    mobile.length > 20 ||
+    !deliveryAddress ||
+    deliveryAddress.length > 300 ||
+    !deliveryCity ||
+    !deliveryState ||
+    !/^[0-9]{6}$/.test(postalCode) ||
+    orderNote.length > 500
   ) {
     return res.status(400).json({
       message: "Please provide valid customer and delivery details",
@@ -212,127 +376,359 @@ app.post("/api/orders", orderLimiter, wrap(async (req, res) => {
     return res.status(400).json({ message: "Invalid items" });
   }
 
-  // Validate and combine duplicate product IDs
+  // Combine duplicate product IDs
   const quantities = new Map();
 
   for (const item of items) {
-    const id = String(item.productId || "");
-    const qty = Number(item.qty);
+    const id = String(item?.productId || "");
+    const qty = Number(item?.qty);
 
-    if (!mongoose.isValidObjectId(id) || !Number.isInteger(qty) || qty < 1 || qty > 100) {
-      return res.status(400).json({ message: "Invalid product or quantity" });
+    if (
+      !mongoose.isValidObjectId(id) ||
+      !Number.isInteger(qty) ||
+      qty < 1 ||
+      qty > 100
+    ) {
+      return res.status(400).json({
+        message: "Invalid product or quantity",
+      });
     }
 
     quantities.set(id, (quantities.get(id) || 0) + qty);
   }
 
   if ([...quantities.values()].some((qty) => qty > 100)) {
-    return res.status(400).json({ message: "Maximum quantity per product is 100" });
+    return res.status(400).json({
+      message: "Maximum quantity per product is 100",
+    });
+  }
+
+  // Read product details and calculate prices from the database.
+  // This checks current stock but does NOT reserve or deduct it.
+  const productIds = [...quantities.keys()];
+
+  const products = await Product.find({
+    _id: { $in: productIds },
+  }).lean();
+
+  const productMap = new Map(
+    products.map((product) => [String(product._id), product])
+  );
+
+  const lines = [];
+  let total = 0;
+
+  for (const [productId, qty] of quantities) {
+    const product = productMap.get(productId);
+
+    if (!product) {
+      return res.status(404).json({
+        message: "One or more products are unavailable",
+      });
+    }
+
+    if (product.stock < qty) {
+      return res.status(409).json({
+        message: `Insufficient stock for ${product.name}. Available: ${product.stock}`,
+      });
+    }
+
+    lines.push({
+      product: product._id,
+      name: product.name,
+      price: product.price,
+      qty,
+    });
+
+    total += product.price * qty;
+  }
+
+  const order = await Order.create({
+    items: lines,
+    total,
+    customerName: name,
+    phone: mobile,
+    address: deliveryAddress,
+    city: deliveryCity,
+    state: deliveryState,
+    pincode: postalCode,
+    note: orderNote,
+    status: "New",
+    stockDeducted: false,
+    stockRestored: false,
+    source: "website",
+  });
+
+  res.status(201).json({
+    message: "Order created successfully. Awaiting admin confirmation.",
+    _id: order._id,
+    total: order.total,
+    status: order.status,
+  });
+}));
+
+// ADMIN: Get orders
+app.get("/api/orders", auth, wrap(async (_req, res) => {
+  const orders = await Order.find()
+    .sort({ createdAt: -1 })
+    .limit(500);
+
+  res.json(orders);
+}));
+
+// ADMIN: Update order and safely manage stock
+app.put("/api/orders/:id", auth, checkId, wrap(async (req, res) => {
+  const allowedFields = [
+    "customerName",
+    "phone",
+    "address",
+    "city",
+    "state",
+    "pincode",
+    "note",
+  ];
+
+  const updates = pick(req.body, allowedFields);
+  const requestedStatus = req.body.status;
+
+  // Validate editable fields
+  if (
+    updates.customerName !== undefined &&
+    (typeof updates.customerName !== "string" ||
+      !updates.customerName.trim() ||
+      updates.customerName.trim().length > 100)
+  ) {
+    return res.status(400).json({ message: "Invalid customer name" });
+  }
+
+  if (
+    updates.phone !== undefined &&
+    (typeof updates.phone !== "string" ||
+      !updates.phone.trim() ||
+      updates.phone.trim().length > 20)
+  ) {
+    return res.status(400).json({ message: "Invalid phone number" });
+  }
+
+  if (
+    updates.address !== undefined &&
+    (typeof updates.address !== "string" ||
+      !updates.address.trim() ||
+      updates.address.trim().length > 300)
+  ) {
+    return res.status(400).json({ message: "Invalid address" });
+  }
+
+  if (
+    updates.pincode !== undefined &&
+    !/^[0-9]{6}$/.test(String(updates.pincode).trim())
+  ) {
+    return res.status(400).json({ message: "Invalid pincode" });
+  }
+
+  if (
+    updates.note !== undefined &&
+    (typeof updates.note !== "string" || updates.note.trim().length > 500)
+  ) {
+    return res.status(400).json({ message: "Invalid order note" });
+  }
+
+  if (
+    requestedStatus !== undefined &&
+    !["New", "Confirmed", "Delivered", "Cancelled"].includes(requestedStatus)
+  ) {
+    return res.status(400).json({ message: "Invalid order status" });
   }
 
   const session = await mongoose.startSession();
-  let createdOrder;
+  let updatedOrder;
 
   try {
     await session.withTransaction(async () => {
-      const lines = [];
-      let total = 0;
+      const order = await Order.findById(req.params.id).session(session);
 
-      for (const [productId, qty] of quantities) {
-        // Deduct stock only if enough stock is available
-        const product = await Product.findOneAndUpdate(
-          {
-            _id: productId,
-            stock: { $gte: qty },
-          },
-          {
-            $inc: { stock: -qty },
-          },
-          {
-            new: true,
-            session,
+      if (!order) {
+        const error = new Error("Order not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      // Apply customer detail updates
+      for (const [key, value] of Object.entries(updates)) {
+        order[key] = typeof value === "string" ? value.trim() : value;
+      }
+
+      const oldStatus = order.status;
+      const newStatus = requestedStatus ?? oldStatus;
+
+      if (newStatus !== oldStatus) {
+        // New -> Confirmed: deduct stock atomically
+        if (oldStatus === "New" && newStatus === "Confirmed") {
+          if (order.stockDeducted || order.stockRestored) {
+            const error = new Error("Order inventory state is invalid");
+            error.statusCode = 409;
+            throw error;
           }
-        );
 
-        if (!product) {
+          for (const item of order.items) {
+            const product = await Product.findOneAndUpdate(
+              {
+                _id: item.product,
+                stock: { $gte: item.qty },
+              },
+              {
+                $inc: { stock: -item.qty },
+              },
+              {
+                new: true,
+                session,
+              }
+            );
+
+            if (!product) {
+              const error = new Error(
+                `Insufficient stock for ${item.name || "a product"}`
+              );
+              error.statusCode = 409;
+              throw error;
+            }
+          }
+
+          order.stockDeducted = true;
+          order.stockRestored = false;
+        }
+
+        // New -> Cancelled: no stock was deducted
+        else if (oldStatus === "New" && newStatus === "Cancelled") {
+          if (order.stockDeducted) {
+            const error = new Error(
+              "Inventory was already deducted. Please check this order before cancelling."
+            );
+            error.statusCode = 409;
+            throw error;
+          }
+        }
+
+        // Confirmed -> Delivered: stock remains deducted
+        else if (oldStatus === "Confirmed" && newStatus === "Delivered") {
+          if (!order.stockDeducted || order.stockRestored) {
+            const error = new Error("Order inventory state is invalid");
+            error.statusCode = 409;
+            throw error;
+          }
+        }
+
+        // Confirmed -> Cancelled: restore stock exactly once
+        else if (oldStatus === "Confirmed" && newStatus === "Cancelled") {
+          if (!order.stockDeducted || order.stockRestored) {
+            const error = new Error(
+              "Stock cannot be restored because its inventory state is invalid"
+            );
+            error.statusCode = 409;
+            throw error;
+          }
+
+          for (const item of order.items) {
+            const result = await Product.updateOne(
+              { _id: item.product },
+              { $inc: { stock: item.qty } },
+              { session }
+            );
+
+            if (result.matchedCount !== 1) {
+              const error = new Error(
+                `Product not found while restoring stock: ${item.name}`
+              );
+              error.statusCode = 409;
+              throw error;
+            }
+          }
+
+          order.stockRestored = true;
+        }
+
+        // Disallow reopening or unsupported status transitions
+        else {
           const error = new Error(
-            `Insufficient stock or product unavailable: ${productId}`
+            `Cannot change order status from ${oldStatus} to ${newStatus}`
           );
-          error.code = "INSUFFICIENT_STOCK";
+          error.statusCode = 409;
           throw error;
         }
 
-        lines.push({
-          product: product._id,
-          name: product.name,
-          price: product.price,
-          qty,
-        });
-
-        total += product.price * qty;
+        order.status = newStatus;
       }
 
-      // Create order only after all stock deductions succeed
-      const orders = await Order.create(
-        [{
-          items: lines,
-          total,
-          customerName: customerName.trim(),
-          phone: phone.trim(),
-          address: address.trim(),
-          city: city.trim(),
-          state: state.trim(),
-          pincode: String(pincode),
-          note: note?.trim() || "",
-          status: "New",
-          source: "website",
-        }],
-        { session }
-      );
-
-      createdOrder = orders[0];
+      await order.save({ session });
+      updatedOrder = order;
     });
 
-    res.status(201).json({
-      message: "Order placed successfully",
-      _id: createdOrder._id,
-      total: createdOrder.total,
+    res.json({
+      message: "Order updated successfully",
+      order: updatedOrder,
     });
-
   } catch (error) {
-    if (error.code === "INSUFFICIENT_STOCK") {
-      return res.status(409).json({
-        message: "One or more products are out of stock or have insufficient stock. Please update your cart.",
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        message: error.message,
       });
     }
 
     throw error;
-
   } finally {
     await session.endSession();
   }
 }));
 
-
-
-
-
-app.get("/api/orders", auth, wrap(async (_req, res) => {
-  res.json(await Order.find().sort({ createdAt: -1 }).limit(500));
-}));
-
-app.put("/api/orders/:id", auth, checkId, wrap(async (req, res) => {
-  const o = await Order.findByIdAndUpdate(
-    req.params.id,
-   pick(req.body, ["status","customerName","phone","address","city","state","pincode","note",]),
-    { new: true, runValidators: true }
-  );
-  o ? res.json(o) : res.status(404).json({ message: "Order not found" });
-}));
-
+// ADMIN: Delete only New or safely Cancelled orders.
+// Confirmed and Delivered orders must remain in the order history.
 app.delete("/api/orders/:id", auth, checkId, wrap(async (req, res) => {
-  await Order.findByIdAndDelete(req.params.id);
-  res.json({ ok: true });
+  const session = await mongoose.startSession();
+
+  try {
+    await session.withTransaction(async () => {
+      const order = await Order.findById(req.params.id).session(session);
+
+      if (!order) {
+        const error = new Error("Order not found");
+        error.statusCode = 404;
+        throw error;
+      }
+
+      if (order.status === "Confirmed" || order.status === "Delivered") {
+        const error = new Error(
+          "Confirmed or delivered orders cannot be deleted. Cancel the order first if appropriate."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      if (order.stockDeducted && !order.stockRestored) {
+        const error = new Error(
+          "This order has deducted stock. Restore inventory before deleting it."
+        );
+        error.statusCode = 409;
+        throw error;
+      }
+
+      await Order.deleteOne(
+        { _id: order._id },
+        { session }
+      );
+    });
+
+    res.json({ message: "Order deleted successfully" });
+  } catch (error) {
+    if (error.statusCode) {
+      return res.status(error.statusCode).json({
+        message: error.message,
+      });
+    }
+
+    throw error;
+  } finally {
+    await session.endSession();
+  }
 }));
 
 // ---------- dashboard stats ----------
@@ -355,7 +751,7 @@ app.get("/api/stats", auth, wrap(async (_req, res) => {
     Order.distinct("phone"),
     Product.find({ stock: { $lte: 5 } }).sort({ stock: 1 }).limit(5).select("name stock").lean(),
     Order.aggregate([
-      { $match: { status: { $ne: "Cancelled" } } },
+     { $match: { status: { $in: ["Confirmed", "Delivered"] } } },
       { $unwind: "$items" },
       { $group: { _id: "$items.name", sold: { $sum: "$items.qty" } } },
       { $sort: { sold: -1 } },
@@ -366,7 +762,7 @@ app.get("/api/stats", auth, wrap(async (_req, res) => {
 
   const thisWeek = last14.filter((o) => o.createdAt >= weekStart);
   const prevWeek = last14.filter((o) => o.createdAt < weekStart);
-  const revenue = (list) => list.filter((o) => o.status !== "Cancelled").reduce((s, o) => s + o.total, 0);
+  const revenue = (list) =>list.filter((o) => ["Confirmed", "Delivered"].includes(o.status)).reduce((sum, order) => sum + order.total, 0);
 
   const ordersByDay = [];
   for (let i = 6; i >= 0; i--) {

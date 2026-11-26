@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
 
-const BRAND = "EVA Auto Parts";
+const BRAND = "EV Auto  Parts";
 const WHATSAPP_NUMBER = "919999999999";
 
 const LINKS = [

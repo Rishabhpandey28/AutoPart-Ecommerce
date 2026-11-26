@@ -109,15 +109,25 @@ const orderSchema = new Schema(
     },
 
     status: {
-      type: String,
-      enum: ["New", "Confirmed", "Delivered", "Cancelled"],
-      default: "New",
-    },
+  type: String,
+  enum: ["New", "Confirmed", "Delivered", "Cancelled"],
+  default: "New",
+},
 
-    source: {
-      type: String,
-      default: "website",
-    },
+stockDeducted: {
+  type: Boolean,
+  default: false,
+},
+
+stockRestored: {
+  type: Boolean,
+  default: false,
+},
+
+source: {
+  type: String,
+  default: "website",
+},
   },
   { timestamps: true }
 );
@@ -130,7 +140,41 @@ const settingSchema = new Schema({
   email: { type: String, default: "" },
   address: { type: String, default: "" },
 });
+// Review Schema
+const reviewSchema = new Schema(
+  {
+    product: {
+      type: Schema.Types.ObjectId,
+      ref: "Product",
+      required: true,
+      index: true,
+    },
 
+    customerName: {
+      type: String,
+      required: true,
+      trim: true,
+      maxlength: 100,
+    },
+
+    rating: {
+      type: Number,
+      required: true,
+      min: 1,
+      max: 5,
+    },
+
+    comment: {
+      type: String,
+      required: true,
+      trim: true,
+      minlength: 3,
+      maxlength: 1000,
+    },
+  },
+  { timestamps: true }
+);
+export const Review = model("Review", reviewSchema);
 export const Product = model("Product", productSchema);
 export const Category = model("Category", categorySchema);
 export const Order = model("Order", orderSchema);

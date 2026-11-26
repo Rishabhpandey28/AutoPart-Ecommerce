@@ -15,35 +15,50 @@ export function CartProvider({ children }) {
     localStorage.setItem("eva-cart", JSON.stringify(cartItems));
   }, [cartItems]);
 
-  const addToCart = (product, quantity = 1) => {
-    setCartItems((current) => {
-      const existing = current.find(
-        (item) => item._id === product._id
-      );
 
-      if (existing) {
-        return current.map((item) =>
-          item._id === product._id
-            ? { ...item, quantity: item.quantity + quantity }
-            : item
-        );
+const addToCart = (product, quantity = 1) => {
+  setCartItems((current) => {
+    const existing = current.find(
+      (item) => item._id === product._id
+    );
+
+    const currentQuantity = existing?.quantity || 0;
+    const newQuantity = currentQuantity + quantity;
+    const availableStock = Number(product.stock) || 0;
+
+    if (newQuantity > availableStock) {
+      return current;
+    }
+
+    if (existing) {
+      return current.map((item) =>
+        item._id === product._id
+          ? { ...item, quantity: newQuantity, stock: availableStock }
+          : item
+      );
+    }
+
+    return [...current, { ...product, quantity }];
+  });
+};
+
+ 
+const updateQuantity = (productId, quantity) => {
+  if (quantity < 1) return;
+
+  setCartItems((current) =>
+    current.map((item) => {
+      if (item._id !== productId) return item;
+
+      if (quantity > Number(item.stock || 0)) {
+        return item;
       }
 
-      return [...current, { ...product, quantity }];
-    });
-  };
+      return { ...item, quantity };
+    })
+  );
+};
 
-  const updateQuantity = (productId, quantity) => {
-    if (quantity < 1) return;
-
-    setCartItems((current) =>
-      current.map((item) =>
-        item._id === productId
-          ? { ...item, quantity }
-          : item
-      )
-    );
-  };
 
   const removeFromCart = (productId) => {
     setCartItems((current) =>

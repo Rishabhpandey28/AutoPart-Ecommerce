@@ -84,7 +84,7 @@ Thank you.
         </h1>
 
         <p className="text-gray-500 mt-3">
-          Thank you for shopping with EVA Auto Parts.
+          Thank you for shopping with EV Auto Parts.
           Your order has been received.
         </p>
 

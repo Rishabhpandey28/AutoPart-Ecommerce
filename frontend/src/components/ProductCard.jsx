@@ -42,7 +42,7 @@ function Stars({ rating }) {
   sm and up: normal vertical grid card
 */
 export default function ProductCard({ p }) {
-  const { addToCart } = useCart();
+ const { addToCart, cartItems } = useCart();
 
   const hasDiscount = p.oldPrice > p.price;
   const discount = hasDiscount
@@ -50,6 +50,13 @@ export default function ProductCard({ p }) {
     : 0;
 
   const outOfStock = p.stock <= 0;
+  const cartItem = cartItems.find(
+  (item) => item._id === p._id
+);
+
+const cartQuantity = cartItem?.quantity || 0;
+
+const stockLimitReached = cartQuantity >= p.stock;
   const link = `/product/${p._id}`;
 
   return (
@@ -152,15 +159,18 @@ export default function ProductCard({ p }) {
             </p>
           )}
         </Link>
-
-        <button
-          onClick={() => addToCart(p, 1)}
-          disabled={outOfStock}
-          className="mt-3 flex items-center justify-center gap-2 rounded-full bg-orange-500 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 sm:mt-auto sm:rounded-lg sm:py-2"
-        >
-          <ShoppingCart size={16} />
-          {outOfStock ? "Out of Stock" : "Add to cart"}
-        </button>
+<button
+  onClick={() => addToCart(p, 1)}
+  disabled={outOfStock || stockLimitReached}
+  className="mt-3 flex items-center justify-center gap-2 rounded-full bg-orange-500 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300 sm:mt-auto sm:rounded-lg sm:py-2"
+>
+  <ShoppingCart size={16} />
+  {outOfStock
+    ? "Out of Stock"
+    : stockLimitReached
+    ? "Maximum Stock Reached"
+    : "Add to cart"}
+</button>
       </div>
     </div>
   );
