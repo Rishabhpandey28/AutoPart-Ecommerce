@@ -19,7 +19,7 @@ import {
   Mail,
   MapPin,
 } from "lucide-react";
-import { useCart } from "../context/CartContext";
+import ProductCard from "../components/ProductCard";
 // ---- Edit these ----
 // Updated from the dashboard Settings page when the page loads
 let WHATSAPP_NUMBER = "9111518187";
@@ -59,93 +59,6 @@ function SectionHeading({ title, link }) {
 }
 
 
-function ProductCard({ p }) {
-  const { addToCart } = useCart();
-
-  const hasDiscount = p.oldPrice > p.price;
-
-  const discount = hasDiscount
-    ? Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100)
-    : 0;
-
-  const outOfStock = p.stock <= 0;
-
-  const handleAddToCart = () => {
-    addToCart(p, 1);
-  };
-
-  return (
-    <div className="group flex flex-col overflow-hidden rounded-xl border bg-white transition hover:shadow-lg">
-      <div className="relative flex h-40 items-center justify-center bg-gray-100 sm:h-48">
-        {p.image ? (
-          <img
-            src={p.image}
-            alt={p.name}
-            className="h-full w-full object-cover"
-            loading="lazy"
-          />
-        ) : (
-          <Cog
-            size={56}
-            className="text-gray-300 transition group-hover:rotate-45 group-hover:text-orange-400"
-          />
-        )}
-
-        {p.tag && (
-          <span className="absolute left-2 top-2 rounded bg-gray-900 px-2 py-0.5 text-xs font-semibold text-white">
-            {p.tag}
-          </span>
-        )}
-
-        {hasDiscount && (
-          <span className="absolute right-2 top-2 rounded bg-orange-500 px-2 py-0.5 text-xs font-bold text-white">
-            -{discount}%
-          </span>
-        )}
-      </div>
-
-      <div className="flex flex-1 flex-col p-3 sm:p-4">
-        {p.brand && (
-          <p className="text-xs uppercase tracking-wide text-gray-400">
-            {p.brand}
-          </p>
-        )}
-
-        <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold text-gray-900 sm:text-base">
-          {p.name}
-        </h3>
-
-        <div className="mt-1 flex items-center gap-1 text-xs text-gray-600">
-          <Star size={14} className="fill-yellow-400 text-yellow-400" />
-          {p.rating}
-        </div>
-
-        <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-lg font-bold text-gray-900">
-            ₹{p.price.toLocaleString("en-IN")}
-          </span>
-
-          {hasDiscount && (
-            <span className="text-xs text-gray-400 line-through">
-              ₹{p.oldPrice.toLocaleString("en-IN")}
-            </span>
-          )}
-        </div>
-
-        <button
-          onClick={handleAddToCart}
-          disabled={outOfStock}
-          className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-orange-500 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
-        >
-          <ShoppingCart size={16} />
-          {outOfStock ? "Out of Stock" : "Add to Cart"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-
 export default function Home() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
@@ -167,19 +80,19 @@ export default function Home() {
     <main className="bg-gray-50">
       {/* Hero */}
       <section className="bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 text-white">
-        <div className="mx-auto grid max-w-7xl items-center gap-8 px-4 py-12 md:grid-cols-2 md:py-20">
-          <div>
+        <div className="mx-auto max-w-7xl px-4 py-12 md:py-20">
+          <div className="mx-auto max-w-3xl text-center">
             <span className="inline-block rounded-full bg-orange-500/20 px-3 py-1 text-sm font-medium text-orange-300">
               Your one-stop auto parts store
             </span>
             <h1 className="mt-4 text-4xl font-extrabold leading-tight sm:text-5xl">
               Right Parts. <span className="text-orange-500">Right Price.</span> Right Now.
             </h1>
-            <p className="mt-4 max-w-lg text-gray-300">
+            <p className="mx-auto mt-4 max-w-xl text-gray-300">
               Brakes, engine parts, batteries, filters and more for all major vehicles. Search by part
               name or vehicle and get it delivered fast.
             </p>
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div className="mt-6 flex flex-wrap justify-center gap-3">
               <a href="/shop" className="flex items-center gap-2 rounded-lg bg-orange-500 px-6 py-3 font-semibold hover:bg-orange-600">
                 Shop Now <ArrowRight size={18} />
               </a>
@@ -192,30 +105,6 @@ export default function Home() {
                 <MessageCircle size={18} /> Ask on WhatsApp
               </a>
             </div>
-          </div>
-
-          {/* Vehicle finder */}
-          <div className="rounded-2xl bg-white p-6 text-gray-900 shadow-xl">
-            <h2 className="text-xl font-bold">Find parts for your vehicle</h2>
-            <p className="text-sm text-gray-500">Select your vehicle to see compatible parts</p>
-            <form onSubmit={(e) => e.preventDefault()} className="mt-4 space-y-3">
-              {["Make", "Model", "Year"].map((label) => (
-                <select
-                  key={label}
-                  defaultValue=""
-                  className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-sm outline-none focus:border-orange-500"
-                >
-                  <option value="" disabled>
-                    Select {label}
-                  </option>
-                  <option>Option 1</option>
-                  <option>Option 2</option>
-                </select>
-              ))}
-              <button className="w-full rounded-lg bg-gray-900 py-3 font-semibold text-white hover:bg-orange-600">
-                Find Parts
-              </button>
-            </form>
           </div>
         </div>
       </section>
@@ -267,7 +156,7 @@ export default function Home() {
             No products yet. Add some from the admin dashboard.
           </p>
         )}
-        <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-4">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
           {products.map((p) => (
             <ProductCard key={p._id} p={p} />
           ))}

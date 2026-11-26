@@ -1,4 +1,3 @@
-
 import mongoose from "mongoose";
 
 const { Schema, model } = mongoose;
@@ -19,7 +18,10 @@ const productSchema = new Schema(
     stock: { type: Number, min: 0, default: 0 },
     rating: { type: Number, min: 0, max: 5, default: 4 },
     tag: { type: String, trim: true, default: "" },
-    image: { type: String, trim: true, default: "" },
+    image: { type: String, trim: true, default: "" }, // cover (= images[0])
+    images: { type: [String], default: [] },
+    isDeal: { type: Boolean, default: false }, // shown in the Deals section
+    dealEndsAt: { type: Date, default: null }, // null = no end date
     description: { type: String, trim: true, default: "" },
   },
   { timestamps: true }

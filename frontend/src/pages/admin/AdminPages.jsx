@@ -1,4 +1,3 @@
-
 import { useCallback, useEffect, useState } from "react";
 import {
   Plus,
@@ -171,6 +170,7 @@ const EMPTY_PRODUCT = {
   rating: "4",
   tag: "",
   image: "",
+  images: [],
   description: "",
 };
 
@@ -193,7 +193,15 @@ export function Products() {
 
     setForm(
       product
-        ? { ...EMPTY_PRODUCT, ...product }
+        ? {
+            ...EMPTY_PRODUCT,
+            ...product,
+            images: product.images?.length
+              ? product.images
+              : product.image
+              ? [product.image]
+              : [],
+          }
         : { ...EMPTY_PRODUCT }
     );
   };
@@ -208,36 +216,59 @@ export function Products() {
     }));
   };
 
-  // Upload image to Cloudinary
-  const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
+  const MAX_IMAGES = 8;
 
-    // Allow selecting the same file again
+  // Upload one file to Cloudinary and return its URL
+  const uploadOne = async (file, cloudName, uploadPreset) => {
+    const data = new FormData();
+    data.append("file", file);
+    data.append("upload_preset", uploadPreset);
+
+    const response = await fetch(
+      `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
+      { method: "POST", body: data }
+    );
+    const result = await response.json();
+
+    if (!response.ok) {
+      throw new Error(result.error?.message || "Image upload failed.");
+    }
+    if (!result.secure_url) {
+      throw new Error("Cloudinary did not return an image URL.");
+    }
+    return result.secure_url;
+  };
+
+  // Upload one or more images to Cloudinary
+  const handleImageUpload = async (e) => {
+    const files = Array.from(e.target.files || []);
+
+    // Allow selecting the same files again
     e.target.value = "";
 
-    if (!file) return;
+    if (!files.length) return;
 
-    const allowedTypes = [
-      "image/jpeg",
-      "image/png",
-      "image/webp",
-    ];
-
-    if (!allowedTypes.includes(file.type)) {
-      setError("Please select a JPG, PNG, or WEBP image.");
+    const room = MAX_IMAGES - form.images.length;
+    if (room <= 0) {
+      setError(`You can add up to ${MAX_IMAGES} images per product.`);
       return;
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError("Image size must be less than 5 MB.");
+    const allowedTypes = ["image/jpeg", "image/png", "image/webp"];
+    const valid = files.filter(
+      (f) => allowedTypes.includes(f.type) && f.size <= 5 * 1024 * 1024
+    );
+    const skippedBad = files.length - valid.length;
+    const toUpload = valid.slice(0, room);
+    const skippedLimit = valid.length - toUpload.length;
+
+    if (toUpload.length === 0) {
+      setError("Please select JPG, PNG, or WEBP images under 5 MB each.");
       return;
     }
 
-    const cloudName =
-      import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
-
-    const uploadPreset =
-      import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
+    const cloudName = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME;
+    const uploadPreset = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET;
 
     if (!cloudName || !uploadPreset) {
       setError(
@@ -249,42 +280,45 @@ export function Products() {
     setError("");
     setUploading(true);
 
+    const urls = [];
+    let failure = "";
+
     try {
-      const data = new FormData();
-
-      data.append("file", file);
-      data.append("upload_preset", uploadPreset);
-
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${cloudName}/image/upload`,
-        {
-          method: "POST",
-          body: data,
-        }
-      );
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        throw new Error(
-          result.error?.message || "Image upload failed."
-        );
+      for (const file of toUpload) {
+        urls.push(await uploadOne(file, cloudName, uploadPreset));
       }
-
-      if (!result.secure_url) {
-        throw new Error("Cloudinary did not return an image URL.");
-      }
-
-      setForm((prev) => ({
-        ...prev,
-        image: result.secure_url,
-      }));
     } catch (err) {
-      setError(err.message || "Unable to upload image.");
-    } finally {
-      setUploading(false);
+      failure = err.message || "Unable to upload image.";
     }
+
+    if (urls.length) {
+      setForm((prev) => ({ ...prev, images: [...prev.images, ...urls] }));
+    }
+
+    if (failure) {
+      setError(failure);
+    } else if (skippedBad || skippedLimit) {
+      setError(
+        `${skippedBad ? `${skippedBad} file(s) skipped (use JPG/PNG/WEBP under 5 MB). ` : ""}${
+          skippedLimit ? `Only ${MAX_IMAGES} images allowed per product.` : ""
+        }`
+      );
+    }
+
+    setUploading(false);
   };
+
+  const removeImage = (index) =>
+    setForm((prev) => ({
+      ...prev,
+      images: prev.images.filter((_, i) => i !== index),
+    }));
+
+  const makeCover = (index) =>
+    setForm((prev) => ({
+      ...prev,
+      images: [prev.images[index], ...prev.images.filter((_, i) => i !== index)],
+    }));
 
   // Save product
   const save = async (e) => {
@@ -330,7 +364,8 @@ export function Products() {
       stock: Number(form.stock) || 0,
       rating: Number(form.rating) || 0,
       tag: form.tag.trim(),
-      image: form.image,
+      image: form.images[0] || "",
+      images: form.images,
       description: form.description.trim(),
     };
 
@@ -609,55 +644,75 @@ export function Products() {
               </Field>
             </div>
 
-            {/* Cloudinary Image Upload */}
-            <Field label="Product Image">
+            {/* Cloudinary Image Upload (multiple) */}
+            <Field label={`Product Images (${form.images.length}/${MAX_IMAGES})`}>
               <div className="rounded-xl border-2 border-dashed border-gray-300 p-4">
-                {form.image ? (
-                  <div className="mb-4">
-                    <img
-                      src={form.image}
-                      alt="Product preview"
-                      className="h-44 w-full rounded-lg bg-gray-100 object-contain"
-                    />
+                {form.images.length > 0 ? (
+                  <div className="mb-4 grid grid-cols-3 gap-3 sm:grid-cols-4">
+                    {form.images.map((url, i) => (
+                      <div key={url + i} className="relative">
+                        <img
+                          src={url}
+                          alt={`Product ${i + 1}`}
+                          className="h-24 w-full rounded-lg bg-gray-100 object-contain"
+                        />
 
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          image: "",
-                        }))
-                      }
-                      className="mt-2 text-sm font-medium text-red-600 hover:underline"
-                    >
-                      Remove image
-                    </button>
+                        {i === 0 && (
+                          <span className="absolute left-1 top-1 rounded bg-orange-500 px-1.5 py-0.5 text-[10px] font-bold text-white">
+                            Cover
+                          </span>
+                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => removeImage(i)}
+                          aria-label="Remove image"
+                          className="absolute right-1 top-1 rounded-full bg-white/90 px-1.5 text-sm font-bold leading-5 text-red-600 shadow"
+                        >
+                          ×
+                        </button>
+
+                        {i > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => makeCover(i)}
+                            className="mt-1 w-full text-xs font-medium text-orange-600 hover:underline"
+                          >
+                            Make cover
+                          </button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 ) : (
                   <div className="flex flex-col items-center justify-center py-5 text-gray-400">
                     <ImagePlus size={38} />
                     <p className="mt-2 text-sm">
-                      Select a product image
+                      Select one or more product images
                     </p>
                   </div>
                 )}
 
                 <input
                   type="file"
+                  multiple
                   accept="image/jpeg,image/png,image/webp"
                   onChange={handleImageUpload}
-                  disabled={uploading || saving}
+                  disabled={
+                    uploading || saving || form.images.length >= MAX_IMAGES
+                  }
                   className="block w-full text-sm text-gray-600 file:mr-3 file:rounded-lg file:border-0 file:bg-orange-50 file:px-4 file:py-2 file:font-semibold file:text-orange-600 hover:file:bg-orange-100 disabled:opacity-50"
                 />
 
                 <p className="mt-2 text-xs text-gray-500">
-                  Supported: JPG, PNG, WEBP. Maximum size: 5 MB.
+                  JPG, PNG, WEBP. Max 5 MB each, up to {MAX_IMAGES} images. The
+                  first image is the cover shown on the product card.
                 </p>
 
                 {uploading && (
                   <div className="mt-3 rounded-lg bg-orange-50 p-3">
                     <p className="text-sm font-semibold text-orange-600">
-                      Uploading image to Cloudinary...
+                      Uploading images to Cloudinary...
                     </p>
                     <div className="mt-2 h-2 overflow-hidden rounded-full bg-orange-100">
                       <div className="h-full w-1/2 animate-pulse rounded-full bg-orange-500" />
@@ -684,7 +739,7 @@ export function Products() {
               className="w-full rounded-lg bg-orange-500 py-2.5 font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {uploading
-                ? "Uploading Image..."
+                ? "Uploading Images..."
                 : saving
                 ? "Saving Product..."
                 : "Save Product"}
@@ -1411,6 +1466,278 @@ export function SettingsPage() {
           {saving ? "Saving..." : "Save Changes"}
         </button>
       </form>
+    </>
+  );
+}
+
+
+// ======================================================
+// DEALS
+// ======================================================
+
+const pad = (n) => String(n).padStart(2, "0");
+
+// ISO date -> value for <input type="datetime-local">
+const toInputValue = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(
+    d.getHours()
+  )}:${pad(d.getMinutes())}`;
+};
+
+const fmtDate = (iso) =>
+  new Date(iso).toLocaleString("en-IN", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+
+export function Deals() {
+  const products = useFetch("/products");
+
+  const [modal, setModal] = useState(false);
+  const [editing, setEditing] = useState(null); // existing deal being edited
+  const [productId, setProductId] = useState("");
+  const [endsAt, setEndsAt] = useState("");
+  const [find, setFind] = useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  if (!products.data) return <Loading error={products.error} />;
+
+  const deals = products.data.filter((p) => p.isDeal);
+  const available = products.data
+    .filter((p) => !p.isDeal)
+    .filter((p) => p.name.toLowerCase().includes(find.toLowerCase()));
+
+  const now = Date.now();
+  const isExpired = (p) => p.dealEndsAt && new Date(p.dealEndsAt).getTime() <= now;
+
+  const openAdd = () => {
+    setEditing(null);
+    setProductId("");
+    setEndsAt("");
+    setFind("");
+    setError("");
+    setModal(true);
+  };
+
+  const openEdit = (p) => {
+    setEditing(p);
+    setProductId(p._id);
+    setEndsAt(toInputValue(p.dealEndsAt));
+    setError("");
+    setModal(true);
+  };
+
+  const save = async (e) => {
+    e.preventDefault();
+    setError("");
+
+    if (!productId) {
+      setError("Please choose a product.");
+      return;
+    }
+
+    if (endsAt && new Date(endsAt).getTime() <= Date.now()) {
+      setError("End date must be in the future.");
+      return;
+    }
+
+    setSaving(true);
+
+    try {
+      await api.put(`/products/${productId}`, {
+        isDeal: true,
+        dealEndsAt: endsAt ? new Date(endsAt).toISOString() : null,
+      });
+      setModal(false);
+      products.reload();
+    } catch (err) {
+      setError(err.message || "Unable to save deal.");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const remove = async (p) => {
+    if (!window.confirm(`Remove "${p.name}" from Deals? The product itself stays in the store.`)) {
+      return;
+    }
+
+    try {
+      await api.put(`/products/${p._id}`, { isDeal: false, dealEndsAt: null });
+      products.reload();
+    } catch (err) {
+      alert(err.message);
+    }
+  };
+
+  const noDiscount = (p) => !(p.oldPrice > p.price);
+
+  return (
+    <>
+      <PageHeader
+        title="Deals"
+        subtitle="Products shown in the store's Deals section"
+        action={<AddButton onClick={openAdd}>Add Deal</AddButton>}
+      />
+
+      <Table head={["Product", "Price", "Ends", "Status", "Actions"]}>
+        {deals.length === 0 && (
+          <Empty cols={5} text="No deals yet. Click “Add Deal” to feature a product." />
+        )}
+
+        {deals.map((p) => {
+          const expired = isExpired(p);
+          const off = !noDiscount(p)
+            ? Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100)
+            : 0;
+
+          return (
+            <tr key={p._id}>
+              <td className="px-5 py-3">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg bg-gray-100">
+                    {p.image ? (
+                      <img src={p.image} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <Cog size={20} className="text-gray-300" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate font-medium text-gray-900">{p.name}</p>
+                    <p className="text-xs text-gray-500">{p.category || "—"}</p>
+                  </div>
+                </div>
+              </td>
+
+              <td className="px-5 py-3">
+                <p className="font-semibold text-gray-900">{inr(p.price)}</p>
+                {off > 0 ? (
+                  <p className="text-xs">
+                    <span className="text-gray-400 line-through">{inr(p.oldPrice)}</span>{" "}
+                    <span className="font-semibold text-green-700">{off}% off</span>
+                  </p>
+                ) : (
+                  <p className="text-xs text-orange-600">No discount set</p>
+                )}
+              </td>
+
+              <td className="px-5 py-3 text-gray-600">
+                {p.dealEndsAt ? fmtDate(p.dealEndsAt) : "No end date"}
+              </td>
+
+              <td className="px-5 py-3">
+                <span
+                  className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                    expired
+                      ? "bg-red-100 text-red-700"
+                      : "bg-green-100 text-green-700"
+                  }`}
+                >
+                  {expired ? "Expired" : "Live"}
+                </span>
+              </td>
+
+              <td className="px-5 py-3">
+                <div className="flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => openEdit(p)}
+                    className="rounded p-2 text-gray-600 hover:bg-gray-100"
+                    aria-label="Edit deal"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => remove(p)}
+                    className="rounded p-2 text-red-600 hover:bg-red-50"
+                    aria-label="Remove deal"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              </td>
+            </tr>
+          );
+        })}
+      </Table>
+
+      <p className="mt-3 text-xs text-gray-500">
+        Deal prices come from each product: set the product&apos;s <b>Price</b> and{" "}
+        <b>Old price</b> in Products so the deal shows a discount.
+      </p>
+
+      {modal && (
+        <Modal title={editing ? "Edit Deal" : "Add Deal"} onClose={() => setModal(false)}>
+          <form onSubmit={save} className="space-y-4">
+            {error && (
+              <p className="rounded-lg bg-red-50 p-3 text-sm text-red-700">{error}</p>
+            )}
+
+            {editing ? (
+              <Field label="Product">
+                <p className="rounded-lg bg-gray-50 px-3 py-2 text-sm font-medium text-gray-900">
+                  {editing.name}
+                </p>
+              </Field>
+            ) : (
+              <Field label="Product *">
+                <input
+                  type="text"
+                  value={find}
+                  onChange={(e) => setFind(e.target.value)}
+                  placeholder="Search products..."
+                  className={`${inputCls} mb-2`}
+                />
+                <select
+                  value={productId}
+                  onChange={(e) => setProductId(e.target.value)}
+                  size={6}
+                  className={inputCls}
+                >
+                  {available.length === 0 && (
+                    <option disabled value="">
+                      No products found
+                    </option>
+                  )}
+                  {available.map((p) => (
+                    <option key={p._id} value={p._id}>
+                      {p.name} — {inr(p.price)}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            )}
+
+            <Field label="Deal ends on (optional)">
+              <input
+                type="datetime-local"
+                value={endsAt}
+                onChange={(e) => setEndsAt(e.target.value)}
+                className={inputCls}
+              />
+              <p className="mt-1 text-xs text-gray-500">
+                Leave empty to keep the deal running until you remove it. After the end
+                time it disappears from the store automatically.
+              </p>
+            </Field>
+
+            <button
+              type="submit"
+              disabled={saving}
+              className="w-full rounded-lg bg-orange-500 py-2.5 font-semibold text-white hover:bg-orange-600 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {saving ? "Saving..." : editing ? "Save Changes" : "Add to Deals"}
+            </button>
+          </form>
+        </Modal>
+      )}
     </>
   );
 }

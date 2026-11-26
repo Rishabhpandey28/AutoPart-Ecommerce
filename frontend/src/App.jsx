@@ -1,4 +1,3 @@
-
 import {
   BrowserRouter,
   Routes,
@@ -22,10 +21,15 @@ import {
   Categories,
   Customers,
   SettingsPage,
+  Deals as AdminDeals,
 } from "./pages/admin/AdminPages";
 
 // Customer pages
 import Shop from "./pages/Shop";
+import AllCategories from "./pages/Categories";
+import ProductDetail from "./pages/ProductDetail";
+import DealsPage from "./pages/Deals";
+import ContactPage from "./pages/Contact";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import OrderSuccess from "./pages/OrderSuccess";
@@ -85,21 +89,17 @@ export default function App() {
           <Route element={<ShopLayout />}>
             <Route path="/" element={<Home />} />
             <Route path="/shop" element={<Shop />} />
+            <Route path="/categories" element={<AllCategories />} />
+            <Route path="/product/:id" element={<ProductDetail />} />
 
             <Route
               path="/category/:name"
               element={<Placeholder title="Category" />}
             />
 
-            <Route
-              path="/deals"
-              element={<Placeholder title="Deals" />}
-            />
+            <Route path="/deals" element={<DealsPage />} />
 
-            <Route
-              path="/contact"
-              element={<Placeholder title="Contact Us" />}
-            />
+            <Route path="/contact" element={<ContactPage />} />
 
             <Route path="/cart" element={<Cart />} />
             <Route path="/checkout" element={<Checkout />} />
@@ -123,6 +123,7 @@ export default function App() {
             <Route index element={<AdminDashboard />} />
             <Route path="orders" element={<Orders />} />
             <Route path="products" element={<Products />} />
+            <Route path="deals" element={<AdminDeals />} />
             <Route path="categories" element={<Categories />} />
             <Route path="customers" element={<Customers />} />
             <Route path="settings" element={<SettingsPage />} />
@@ -131,4 +132,4 @@ export default function App() {
       </BrowserRouter>
     </CartProvider>
   );
-}
+} 

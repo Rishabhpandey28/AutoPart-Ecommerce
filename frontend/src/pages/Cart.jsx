@@ -1,4 +1,3 @@
-
 import { Link, useNavigate } from "react-router-dom";
 import { ShoppingCart, Plus, Minus, Trash2, ArrowRight, ShoppingBag } from "lucide-react";
 import { useCart } from "../context/CartContext";
@@ -9,6 +8,8 @@ export default function Cart() {
   const {
     cartItems,
     cartTotal,
+    cartMrp,
+    cartSavings,
     updateQuantity,
     removeFromCart,
   } = useCart();
@@ -91,9 +92,22 @@ export default function Cart() {
                       </p>
                     )}
 
-                    <p className="mt-2 font-bold text-orange-600">
-                      ₹{Number(item.price).toLocaleString("en-IN")}
-                    </p>
+                    <div className="mt-2 flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                      <span className="font-bold text-orange-600">
+                        ₹{Number(item.price).toLocaleString("en-IN")}
+                      </span>
+
+                      {item.oldPrice > item.price && (
+                        <>
+                          <span className="text-sm text-gray-400 line-through decoration-red-500 decoration-2">
+                            ₹{Number(item.oldPrice).toLocaleString("en-IN")}
+                          </span>
+                          <span className="rounded bg-green-100 px-1.5 py-0.5 text-xs font-bold text-green-700">
+                            {Math.round(((item.oldPrice - item.price) / item.oldPrice) * 100)}% OFF
+                          </span>
+                        </>
+                      )}
+                    </div>
                   </div>
 
                   <div className="flex flex-wrap items-center justify-between gap-3">
@@ -139,6 +153,11 @@ export default function Cart() {
                 {/* Item total */}
                 <div className="text-right sm:min-w-28">
                   <p className="text-xs text-gray-500">Item total</p>
+                  {item.oldPrice > item.price && (
+                    <p className="text-xs text-gray-400 line-through decoration-red-500">
+                      ₹{(Number(item.oldPrice) * item.quantity).toLocaleString("en-IN")}
+                    </p>
+                  )}
                   <p className="text-lg font-bold text-gray-900">
                     ₹{(Number(item.price) * item.quantity).toLocaleString("en-IN")}
                   </p>
@@ -167,6 +186,22 @@ export default function Cart() {
                 <span>{cartItems.reduce((sum, item) => sum + item.quantity, 0)}</span>
               </div>
 
+              {cartSavings > 0 && (
+                <>
+                  <div className="flex justify-between text-gray-600">
+                    <span>Price (MRP)</span>
+                    <span className="line-through decoration-red-500">
+                      ₹{Number(cartMrp).toLocaleString("en-IN")}
+                    </span>
+                  </div>
+
+                  <div className="flex justify-between font-medium text-green-700">
+                    <span>Discount</span>
+                    <span>− ₹{Number(cartSavings).toLocaleString("en-IN")}</span>
+                  </div>
+                </>
+              )}
+
               <div className="flex justify-between text-gray-600">
                 <span>Subtotal</span>
                 <span>
@@ -188,6 +223,12 @@ export default function Cart() {
                 </div>
               </div>
             </div>
+
+            {cartSavings > 0 && (
+              <p className="mt-4 rounded-lg bg-green-50 p-3 text-center text-sm font-semibold text-green-700">
+                You will save ₹{Number(cartSavings).toLocaleString("en-IN")} on this order
+              </p>
+            )}
 
             <button
               onClick={() => navigate("/checkout")}

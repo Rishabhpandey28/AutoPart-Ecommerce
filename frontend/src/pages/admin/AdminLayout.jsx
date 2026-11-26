@@ -4,6 +4,7 @@ import { getToken, clearToken } from "../../lib/api";
 import {
   LayoutDashboard,
   Package,
+  BadgePercent,
   ShoppingBag,
   Users,
   Tags,
@@ -21,6 +22,7 @@ const NAV = [
   { label: "Dashboard", icon: LayoutDashboard, to: "/admin", end: true },
   { label: "Orders", icon: ShoppingBag, to: "/admin/orders" },
   { label: "Products", icon: Package, to: "/admin/products" },
+  { label: "Deals", icon: BadgePercent, to: "/admin/deals" },
   { label: "Categories", icon: Tags, to: "/admin/categories" },
   { label: "Customers", icon: Users, to: "/admin/customers" },
   { label: "Settings", icon: Settings, to: "/admin/settings" },

@@ -65,7 +65,26 @@ const auth = (req, res, next) => {
 const loginLimiter = rateLimit({ windowMs: 15 * 60 * 1000, max: 10, message: { message: "Too many attempts, try later" } });
 const orderLimiter = rateLimit({ windowMs: 60 * 60 * 1000, max: 30, message: { message: "Too many orders, try later" } });
 
-const PRODUCT_FIELDS = ["name", "brand", "category", "price", "oldPrice", "stock", "rating", "tag", "image", "description"];
+const PRODUCT_FIELDS = ["name", "brand", "category", "price", "oldPrice", "stock", "rating", "tag", "image", "images", "description", "isDeal", "dealEndsAt"];
+
+// Pick product fields and tidy the images list (max 8, http(s) urls only).
+// The first image is always kept as the cover in `image`.
+const productData = (body) => {
+  const data = pick(body, PRODUCT_FIELDS);
+  if (Array.isArray(data.images)) {
+    data.images = data.images
+      .map((u) => String(u).trim())
+      .filter((u) => /^https?:\/\//.test(u))
+      .slice(0, 8);
+    data.image = data.images[0] || "";
+  }
+  if ("isDeal" in data) data.isDeal = Boolean(data.isDeal);
+  if ("dealEndsAt" in data) {
+    const d = data.dealEndsAt ? new Date(data.dealEndsAt) : null;
+    data.dealEndsAt = d && !isNaN(d) ? d : null;
+  }
+  return data;
+};
 
 // ---------- auth ----------
 app.post("/api/auth/login", loginLimiter, (req, res) => {
@@ -79,10 +98,26 @@ app.post("/api/auth/login", loginLimiter, (req, res) => {
 
 // ---------- products ----------
 app.get("/api/products", wrap(async (req, res) => {
-  const { category, q, limit } = req.query;
+  const { category, q, limit, deal } = req.query;
   const filter = {};
   if (category) filter.category = category;
-  if (q) filter.name = { $regex: String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+  if (q) {
+    // every word must match at least one of name / brand / category / description,
+    // so "brake pad" and "pad brake" both work
+    const words = String(q).trim().split(/\s+/).filter(Boolean).slice(0, 6);
+    filter.$and = words.map((w) => {
+      const rx = { $regex: w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), $options: "i" };
+      return { $or: [{ name: rx }, { brand: rx }, { category: rx }, { description: rx }] };
+    });
+  }
+  if (deal) {
+    // only deals that are switched on and not expired
+    filter.isDeal = true;
+    filter.$and = [
+      ...(filter.$and || []),
+      { $or: [{ dealEndsAt: null }, { dealEndsAt: { $gt: new Date() } }] },
+    ];
+  }
   const products = await Product.find(filter)
     .sort({ createdAt: -1 })
     .limit(Math.min(parseInt(limit) || 200, 200));
@@ -95,12 +130,12 @@ app.get("/api/products/:id", checkId, wrap(async (req, res) => {
 }));
 
 app.post("/api/products", auth, wrap(async (req, res) => {
-  const p = await Product.create(pick(req.body, PRODUCT_FIELDS));
+  const p = await Product.create(productData(req.body));
   res.status(201).json(p);
 }));
 
 app.put("/api/products/:id", auth, checkId, wrap(async (req, res) => {
-  const p = await Product.findByIdAndUpdate(req.params.id, pick(req.body, PRODUCT_FIELDS), {
+  const p = await Product.findByIdAndUpdate(req.params.id, productData(req.body), {
     new: true,
     runValidators: true,
   });

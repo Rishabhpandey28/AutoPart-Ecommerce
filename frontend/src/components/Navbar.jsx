@@ -1,12 +1,10 @@
-
-import { useState } from "react";
-import { Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import {
   Search,
   ShoppingCart,
   Menu,
   X,
-  ChevronDown,
   Phone,
   Wrench,
   MessageCircle,
@@ -16,31 +14,20 @@ import { useCart } from "../context/CartContext";
 const BRAND = "EVA Auto Parts";
 const WHATSAPP_NUMBER = "919999999999";
 
-const CATEGORIES = [
-  { name: "Engine Parts", items: ["Pistons & Rings", "Gaskets", "Filters", "Belts & Chains"] },
-  { name: "Brakes", items: ["Brake Pads", "Brake Discs", "Brake Shoes", "Brake Fluid"] },
-  { name: "Suspension", items: ["Shock Absorbers", "Springs", "Control Arms", "Bushings"] },
-  { name: "Electrical", items: ["Batteries", "Headlights", "Starters", "Wiring & Fuses"] },
-  { name: "Body & Exterior", items: ["Mirrors", "Bumpers", "Wipers", "Lights"] },
-  { name: "Oils & Fluids", items: ["Engine Oil", "Coolant", "Gear Oil", "Grease"] },
-];
-
 const LINKS = [
   { label: "Home", href: "/" },
+  { label: "Categories", href: "/categories" },
   { label: "Shop All", href: "/shop" },
   { label: "Deals", href: "/deals" },
   { label: "Contact", href: "/contact" },
 ];
 
-const categoryUrl = (name) =>
-  `/category/${name.toLowerCase().replace(/\W+/g, "-")}`;
-
 export default function Navbar() {
   const { cartCount } = useCart();
+  const navigate = useNavigate();
+  const location = useLocation();
 
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [openCat, setOpenCat] = useState(null);
-  const [megaOpen, setMegaOpen] = useState(false);
   const [search, setSearch] = useState("");
 
   const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
@@ -49,12 +36,22 @@ export default function Navbar() {
 
   const closeMobile = () => setMobileOpen(false);
 
+  // Keep the search box in sync with the URL (?q=...) on the Shop page,
+  // and clear it when the person goes to any other page.
+  useEffect(() => {
+    if (location.pathname === "/shop") {
+      setSearch(new URLSearchParams(location.search).get("q") || "");
+    } else {
+      setSearch("");
+    }
+  }, [location.pathname, location.search]);
+
   const handleSearch = (e) => {
     e.preventDefault();
 
-    if (!search.trim()) return;
-
-    window.location.href = `/shop?q=${encodeURIComponent(search.trim())}`;
+    const term = search.trim();
+    navigate(term ? `/shop?q=${encodeURIComponent(term)}` : "/shop");
+    setMobileOpen(false);
   };
 
   return (
@@ -101,55 +98,6 @@ export default function Navbar() {
 
         {/* Desktop links */}
         <div className="ml-6 hidden items-center gap-1 lg:flex">
-
-          <div
-            className="relative"
-            onMouseEnter={() => setMegaOpen(true)}
-            onMouseLeave={() => setMegaOpen(false)}
-          >
-            <button
-              onClick={() => setMegaOpen(!megaOpen)}
-              className="flex items-center gap-1 rounded-md px-3 py-2 font-medium text-gray-700 hover:bg-gray-100 hover:text-orange-600"
-            >
-              Categories
-              <ChevronDown
-                size={16}
-                className={`transition ${megaOpen ? "rotate-180" : ""}`}
-              />
-            </button>
-
-            {megaOpen && (
-              <div className="absolute left-0 top-full w-[640px] rounded-xl border bg-white p-6 shadow-xl">
-                <div className="grid grid-cols-3 gap-6">
-                  {CATEGORIES.map((cat) => (
-                    <div key={cat.name}>
-                      <Link
-                        to={categoryUrl(cat.name)}
-                        onClick={() => setMegaOpen(false)}
-                        className="mb-2 block font-semibold text-gray-900 hover:text-orange-600"
-                      >
-                        {cat.name}
-                      </Link>
-
-                      <ul className="space-y-1">
-                        {cat.items.map((item) => (
-                          <li key={item}>
-                            <Link
-                              to={categoryUrl(cat.name)}
-                              onClick={() => setMegaOpen(false)}
-                              className="text-sm text-gray-600 hover:text-orange-600"
-                            >
-                              {item}
-                            </Link>
-                          </li>
-                        ))}
-                      </ul>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
 
           {LINKS.map((link) => (
             <Link
@@ -273,46 +221,6 @@ export default function Navbar() {
               >
                 {link.label}
               </Link>
-            ))}
-
-            <p className="mt-3 px-3 text-xs font-semibold uppercase tracking-wide text-gray-400">
-              Categories
-            </p>
-
-            {CATEGORIES.map((cat) => (
-              <div key={cat.name}>
-                <button
-                  onClick={() =>
-                    setOpenCat(openCat === cat.name ? null : cat.name)
-                  }
-                  className="flex w-full items-center justify-between rounded-md px-3 py-3 font-medium text-gray-800 hover:bg-gray-100"
-                >
-                  {cat.name}
-
-                  <ChevronDown
-                    size={16}
-                    className={`transition ${
-                      openCat === cat.name ? "rotate-180" : ""
-                    }`}
-                  />
-                </button>
-
-                {openCat === cat.name && (
-                  <ul className="mb-1 ml-4 border-l pl-3">
-                    {cat.items.map((item) => (
-                      <li key={item}>
-                        <Link
-                          to={categoryUrl(cat.name)}
-                          onClick={closeMobile}
-                          className="block py-2 text-sm text-gray-600 hover:text-orange-600"
-                        >
-                          {item}
-                        </Link>
-                      </li>
-                    ))}
-                  </ul>
-                )}
-              </div>
             ))}
           </div>
 

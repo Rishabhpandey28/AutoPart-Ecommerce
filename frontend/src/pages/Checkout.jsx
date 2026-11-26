@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, ShoppingBag, Truck } from "lucide-react";
@@ -8,7 +7,7 @@ import { api } from "../lib/api";
 export default function Checkout() {
   const navigate = useNavigate();
 
-  const { cartItems, cartTotal, clearCart } = useCart();
+  const { cartItems, cartTotal, cartMrp, cartSavings, clearCart } = useCart();
 
   const [formData, setFormData] = useState({
     customerName: "",
@@ -356,14 +355,37 @@ clearCart();
                       </p>
                     </div>
 
-                    <p className="font-semibold text-sm whitespace-nowrap">
-                      ₹{(item.price * item.quantity).toLocaleString("en-IN")}
-                    </p>
+                    <div className="text-right whitespace-nowrap">
+                      {item.oldPrice > item.price && (
+                        <p className="text-xs text-gray-400 line-through decoration-red-500">
+                          ₹{(item.oldPrice * item.quantity).toLocaleString("en-IN")}
+                        </p>
+                      )}
+                      <p className="font-semibold text-sm">
+                        ₹{(item.price * item.quantity).toLocaleString("en-IN")}
+                      </p>
+                    </div>
                   </div>
                 ))}
               </div>
 
               <div className="border-t border-gray-200 mt-6 pt-5 space-y-3">
+                {cartSavings > 0 && (
+                  <>
+                    <div className="flex justify-between text-gray-600">
+                      <span>Price (MRP)</span>
+                      <span className="line-through decoration-red-500">
+                        ₹{cartMrp.toLocaleString("en-IN")}
+                      </span>
+                    </div>
+
+                    <div className="flex justify-between font-medium text-green-700">
+                      <span>Discount</span>
+                      <span>− ₹{cartSavings.toLocaleString("en-IN")}</span>
+                    </div>
+                  </>
+                )}
+
                 <div className="flex justify-between text-gray-600">
                   <span>Subtotal</span>
                   <span>₹{cartTotal.toLocaleString("en-IN")}</span>

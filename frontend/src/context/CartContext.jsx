@@ -1,4 +1,3 @@
-
 import { createContext, useContext, useEffect, useState } from "react";
 
 const CartContext = createContext(null);
@@ -64,12 +63,25 @@ export function CartProvider({ children }) {
     0
   );
 
+  // MRP = what the cart would cost at the old (cut) prices
+  const cartMrp = cartItems.reduce(
+    (total, item) =>
+      total +
+      (Number(item.oldPrice) > Number(item.price) ? Number(item.oldPrice) : Number(item.price)) *
+        item.quantity,
+    0
+  );
+
+  const cartSavings = cartMrp - cartTotal;
+
   return (
     <CartContext.Provider
       value={{
         cartItems,
         cartCount,
         cartTotal,
+        cartMrp,
+        cartSavings,
         addToCart,
         updateQuantity,
         removeFromCart,
