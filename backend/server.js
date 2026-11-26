@@ -144,27 +144,143 @@ app.delete("/api/categories/:id", auth, checkId, wrap(async (req, res) => {
 
 // ---------- orders ----------
 // Public: called when a customer taps "Order on WhatsApp". Prices come from the DB, not the browser.
+
+
 app.post("/api/orders", orderLimiter, wrap(async (req, res) => {
-  const { items } = req.body;
-  if (!Array.isArray(items) || items.length === 0 || items.length > 20)
-    return res.status(400).json({ message: "Invalid items" });
+  const {
+    customerName,
+    phone,
+    address,
+    city,
+    state,
+    pincode,
+    note,
+    items,
+  } = req.body;
 
-  const ids = items.map((i) => i.productId).filter((id) => mongoose.isValidObjectId(id));
-  const products = await Product.find({ _id: { $in: ids } });
-
-  const lines = [];
-  for (const i of items) {
-    const p = products.find((x) => String(x._id) === String(i.productId));
-    if (!p) continue;
-    const qty = Math.min(Math.max(parseInt(i.qty) || 1, 1), 100);
-    lines.push({ product: p._id, name: p.name, price: p.price, qty });
+  // Validate customer details
+  if (
+    !customerName?.trim() ||
+    !phone?.trim() ||
+    !address?.trim() ||
+    !city?.trim() ||
+    !state?.trim() ||
+    !/^[0-9]{6}$/.test(String(pincode || ""))
+  ) {
+    return res.status(400).json({
+      message: "Please provide valid customer and delivery details",
+    });
   }
-  if (lines.length === 0) return res.status(400).json({ message: "Products not found" });
 
-  const total = lines.reduce((s, l) => s + l.price * l.qty, 0);
-  const order = await Order.create({ items: lines, total });
-  res.status(201).json({ _id: order._id, total });
+  // Validate cart
+  if (!Array.isArray(items) || items.length === 0 || items.length > 20) {
+    return res.status(400).json({ message: "Invalid items" });
+  }
+
+  // Validate and combine duplicate product IDs
+  const quantities = new Map();
+
+  for (const item of items) {
+    const id = String(item.productId || "");
+    const qty = Number(item.qty);
+
+    if (!mongoose.isValidObjectId(id) || !Number.isInteger(qty) || qty < 1 || qty > 100) {
+      return res.status(400).json({ message: "Invalid product or quantity" });
+    }
+
+    quantities.set(id, (quantities.get(id) || 0) + qty);
+  }
+
+  if ([...quantities.values()].some((qty) => qty > 100)) {
+    return res.status(400).json({ message: "Maximum quantity per product is 100" });
+  }
+
+  const session = await mongoose.startSession();
+  let createdOrder;
+
+  try {
+    await session.withTransaction(async () => {
+      const lines = [];
+      let total = 0;
+
+      for (const [productId, qty] of quantities) {
+        // Deduct stock only if enough stock is available
+        const product = await Product.findOneAndUpdate(
+          {
+            _id: productId,
+            stock: { $gte: qty },
+          },
+          {
+            $inc: { stock: -qty },
+          },
+          {
+            new: true,
+            session,
+          }
+        );
+
+        if (!product) {
+          const error = new Error(
+            `Insufficient stock or product unavailable: ${productId}`
+          );
+          error.code = "INSUFFICIENT_STOCK";
+          throw error;
+        }
+
+        lines.push({
+          product: product._id,
+          name: product.name,
+          price: product.price,
+          qty,
+        });
+
+        total += product.price * qty;
+      }
+
+      // Create order only after all stock deductions succeed
+      const orders = await Order.create(
+        [{
+          items: lines,
+          total,
+          customerName: customerName.trim(),
+          phone: phone.trim(),
+          address: address.trim(),
+          city: city.trim(),
+          state: state.trim(),
+          pincode: String(pincode),
+          note: note?.trim() || "",
+          status: "New",
+          source: "website",
+        }],
+        { session }
+      );
+
+      createdOrder = orders[0];
+    });
+
+    res.status(201).json({
+      message: "Order placed successfully",
+      _id: createdOrder._id,
+      total: createdOrder.total,
+    });
+
+  } catch (error) {
+    if (error.code === "INSUFFICIENT_STOCK") {
+      return res.status(409).json({
+        message: "One or more products are out of stock or have insufficient stock. Please update your cart.",
+      });
+    }
+
+    throw error;
+
+  } finally {
+    await session.endSession();
+  }
 }));
+
+
+
+
 
 app.get("/api/orders", auth, wrap(async (_req, res) => {
   res.json(await Order.find().sort({ createdAt: -1 }).limit(500));
@@ -173,7 +289,7 @@ app.get("/api/orders", auth, wrap(async (_req, res) => {
 app.put("/api/orders/:id", auth, checkId, wrap(async (req, res) => {
   const o = await Order.findByIdAndUpdate(
     req.params.id,
-    pick(req.body, ["status", "customerName", "phone", "note"]),
+   pick(req.body, ["status","customerName","phone","address","city","state","pincode","note",]),
     { new: true, runValidators: true }
   );
   o ? res.json(o) : res.status(404).json({ message: "Order not found" });

@@ -19,7 +19,7 @@ import {
   Mail,
   MapPin,
 } from "lucide-react";
-
+import { useCart } from "../context/CartContext";
 // ---- Edit these ----
 // Updated from the dashboard Settings page when the page loads
 let WHATSAPP_NUMBER = "9111518187";
@@ -58,71 +58,93 @@ function SectionHeading({ title, link }) {
   );
 }
 
+
 function ProductCard({ p }) {
-  const [busy, setBusy] = useState(false);
+  const { addToCart } = useCart();
+
   const hasDiscount = p.oldPrice > p.price;
-  const discount = hasDiscount ? Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100) : 0;
+
+  const discount = hasDiscount
+    ? Math.round(((p.oldPrice - p.price) / p.oldPrice) * 100)
+    : 0;
+
   const outOfStock = p.stock <= 0;
 
-  // Saves the order (so it shows in the admin dashboard), then opens WhatsApp
-  const orderOnWhatsApp = async () => {
-    setBusy(true);
-    const win = window.open("about:blank", "_blank"); // open now so phones don't block it
-    let ref = "";
-    try {
-      const order = await api.post("/orders", { items: [{ productId: p._id, qty: 1 }] });
-      ref = ` (Order #${order._id.slice(-5).toUpperCase()})`;
-    } catch {
-      /* still let the customer message us */
-    }
-    const url = waLink(`Hi, I want to order: ${p.name} - ₹${p.price}${ref}`);
-    if (win) win.location.href = url;
-    else window.location.href = url;
-    setBusy(false);
+  const handleAddToCart = () => {
+    addToCart(p, 1);
   };
 
   return (
     <div className="group flex flex-col overflow-hidden rounded-xl border bg-white transition hover:shadow-lg">
       <div className="relative flex h-40 items-center justify-center bg-gray-100 sm:h-48">
         {p.image ? (
-          <img src={p.image} alt={p.name} className="h-full w-full object-cover" loading="lazy" />
+          <img
+            src={p.image}
+            alt={p.name}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
         ) : (
-          <Cog size={56} className="text-gray-300 transition group-hover:rotate-45 group-hover:text-orange-400" />
+          <Cog
+            size={56}
+            className="text-gray-300 transition group-hover:rotate-45 group-hover:text-orange-400"
+          />
         )}
+
         {p.tag && (
           <span className="absolute left-2 top-2 rounded bg-gray-900 px-2 py-0.5 text-xs font-semibold text-white">
             {p.tag}
           </span>
         )}
+
         {hasDiscount && (
           <span className="absolute right-2 top-2 rounded bg-orange-500 px-2 py-0.5 text-xs font-bold text-white">
             -{discount}%
           </span>
         )}
       </div>
+
       <div className="flex flex-1 flex-col p-3 sm:p-4">
-        {p.brand && <p className="text-xs uppercase tracking-wide text-gray-400">{p.brand}</p>}
-        <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold text-gray-900 sm:text-base">{p.name}</h3>
+        {p.brand && (
+          <p className="text-xs uppercase tracking-wide text-gray-400">
+            {p.brand}
+          </p>
+        )}
+
+        <h3 className="mt-0.5 line-clamp-2 text-sm font-semibold text-gray-900 sm:text-base">
+          {p.name}
+        </h3>
+
         <div className="mt-1 flex items-center gap-1 text-xs text-gray-600">
-          <Star size={14} className="fill-yellow-400 text-yellow-400" /> {p.rating}
+          <Star size={14} className="fill-yellow-400 text-yellow-400" />
+          {p.rating}
         </div>
+
         <div className="mt-2 flex items-baseline gap-2">
-          <span className="text-lg font-bold text-gray-900">₹{p.price.toLocaleString("en-IN")}</span>
+          <span className="text-lg font-bold text-gray-900">
+            ₹{p.price.toLocaleString("en-IN")}
+          </span>
+
           {hasDiscount && (
-            <span className="text-xs text-gray-400 line-through">₹{p.oldPrice.toLocaleString("en-IN")}</span>
+            <span className="text-xs text-gray-400 line-through">
+              ₹{p.oldPrice.toLocaleString("en-IN")}
+            </span>
           )}
         </div>
+
         <button
-          onClick={orderOnWhatsApp}
-          disabled={busy || outOfStock}
-          className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-green-500 py-2 text-sm font-semibold text-white hover:bg-green-600 disabled:cursor-not-allowed disabled:bg-gray-300"
+          onClick={handleAddToCart}
+          disabled={outOfStock}
+          className="mt-auto flex items-center justify-center gap-2 rounded-lg bg-orange-500 py-2 text-sm font-semibold text-white transition hover:bg-orange-600 disabled:cursor-not-allowed disabled:bg-gray-300"
         >
-          <MessageCircle size={16} /> {outOfStock ? "Out of stock" : "Order on WhatsApp"}
+          <ShoppingCart size={16} />
+          {outOfStock ? "Out of Stock" : "Add to Cart"}
         </button>
       </div>
     </div>
   );
 }
+
 
 export default function Home() {
   const [products, setProducts] = useState([]);
