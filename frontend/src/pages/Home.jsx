@@ -12,18 +12,11 @@ import {
   Car,
   Droplets,
   Wrench,
-  ShoppingCart,
   MessageCircle,
-  Star,
-  Phone,
-  Mail,
-  MapPin,
 } from "lucide-react";
 import ProductCard from "../components/ProductCard";
+
 // ---- Edit these ----
-// Updated from the dashboard Settings page when the page loads
-
-
 const ICONS = {
   "Engine Parts": Cog,
   Brakes: Disc3,
@@ -33,15 +26,12 @@ const ICONS = {
   "Oils & Fluids": Droplets,
 };
 
-
 const FEATURES = [
   { icon: Truck, title: "Fast Delivery", text: "Quick dispatch across the country" },
   { icon: ShieldCheck, title: "Genuine Quality", text: "Tested, reliable parts only" },
   { icon: BadgePercent, title: "Best Prices", text: "Wholesale-level rates for everyone" },
   { icon: Headphones, title: "Expert Help", text: "Find the right part for your vehicle" },
 ];
-
-
 // --------------------
 
 function SectionHeading({ title, link }) {
@@ -57,40 +47,38 @@ function SectionHeading({ title, link }) {
   );
 }
 
+function Skeleton({ className = "" }) {
+  return <div className={`animate-pulse rounded-xl bg-gray-200 ${className}`} />;
+}
 
 export default function Home() {
   const [products, setProducts] = useState([]);
   const [categories, setCategories] = useState([]);
-  const [, setSettingsLoaded] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   const [whatsappNumber, setWhatsappNumber] = useState("919202960158");
-const waLink = (text) =>
-  `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+  const waLink = (text) =>
+    `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
 
   useEffect(() => {
-    api.get("/products?limit=8").then(setProducts).catch(() => {});
-    api.get("/categories").then(setCategories).catch(() => {});
-    api
-      .get("/settings")
-      .then((st) => {
-        if (st.whatsapp) {
-  setWhatsappNumber(String(st.whatsapp).replace(/\D/g, ""));
-}
-        setSettingsLoaded(true); // re-render with the new number
-      })
-      .catch(() => {});
+    Promise.allSettled([
+      api.get("/products?limit=8").then(setProducts),
+      api.get("/categories").then(setCategories),
+      api.get("/settings").then((st) => {
+        if (st.whatsapp) setWhatsappNumber(String(st.whatsapp).replace(/\D/g, ""));
+      }),
+    ]).finally(() => setLoading(false));
   }, []);
-const uniqueBrands = [
-  ...new Set(
-    products.map((product) => product.brand?.trim()).filter(Boolean)
-  ),
-];
 
-// Repeat the list so ONE group is always wider than any screen.
-// Each item is ~192px (176px min width + 16px gap), so 16 items is ~3000px.
-const MIN_ITEMS_PER_GROUP = 16;
-const repeatCount = Math.ceil(MIN_ITEMS_PER_GROUP / Math.max(uniqueBrands.length, 1));
-const brands = Array.from({ length: repeatCount }, () => uniqueBrands).flat();
+  const uniqueBrands = [
+    ...new Set(products.map((product) => product.brand?.trim()).filter(Boolean)),
+  ];
+
+  // Repeat the list so ONE group is always wider than any screen.
+  const MIN_ITEMS_PER_GROUP = 16;
+  const repeatCount = Math.ceil(MIN_ITEMS_PER_GROUP / Math.max(uniqueBrands.length, 1));
+  const brands = Array.from({ length: repeatCount }, () => uniqueBrands).flat();
+
   return (
     <main className="bg-gray-50">
       {/* Hero */}
@@ -145,36 +133,38 @@ const brands = Array.from({ length: repeatCount }, () => uniqueBrands).flat();
       <section className="mx-auto max-w-7xl px-4 py-12">
         <SectionHeading title="Shop by Category" link="/shop" />
         <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-          {categories.map(({ _id, name }) => {
-            const Icon = ICONS[name] || Cog;
-            return (
-            <a
-              key={_id}
-              href={`/category/${name.toLowerCase().replace(/\W+/g, "-")}`}
-              className="group flex flex-col items-center gap-3 rounded-xl border bg-white p-5 text-center transition hover:border-orange-500 hover:shadow-md"
-            >
-              <span className="rounded-full bg-gray-100 p-4 text-gray-700 transition group-hover:bg-orange-500 group-hover:text-white">
-                <Icon size={28} />
-              </span>
-              <span className="text-sm font-semibold text-gray-800">{name}</span>
-            </a>
-            );
-          })}
+          {loading
+            ? Array.from({ length: 6 }).map((_, i) => <Skeleton key={i} className="h-28" />)
+            : categories.map(({ _id, name }) => {
+                const Icon = ICONS[name] || Cog;
+                return (
+                  <a
+                    key={_id}
+                    href={`/category/${name.toLowerCase().replace(/\W+/g, "-")}`}
+                    className="group flex flex-col items-center gap-3 rounded-xl border bg-white p-5 text-center transition hover:border-orange-500 hover:shadow-md"
+                  >
+                    <span className="rounded-full bg-gray-100 p-4 text-gray-700 transition group-hover:bg-orange-500 group-hover:text-white">
+                      <Icon size={28} />
+                    </span>
+                    <span className="text-sm font-semibold text-gray-800">{name}</span>
+                  </a>
+                );
+              })}
         </div>
       </section>
 
       {/* Featured products */}
       <section className="mx-auto max-w-7xl px-4 pb-12">
         <SectionHeading title="Featured Products" link="/shop" />
-        {products.length === 0 && (
+        {!loading && products.length === 0 && (
           <p className="rounded-xl border bg-white p-8 text-center text-gray-500">
             No products yet. Add some from the admin dashboard.
           </p>
         )}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-5 lg:grid-cols-4">
-          {products.map((p) => (
-            <ProductCard key={p._id} p={p} />
-          ))}
+          {loading
+            ? Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-72" />)
+            : products.map((p) => <ProductCard key={p._id} p={p} />)}
         </div>
       </section>
 
@@ -191,39 +181,47 @@ const brands = Array.from({ length: repeatCount }, () => uniqueBrands).flat();
         </div>
       </section>
 
-      {/* Brands */}
-{/* Brands Marquee */}
-{uniqueBrands.length > 0 && (
-  <section className="overflow-hidden border-y bg-white py-8">
-    <div className="mx-auto max-w-7xl px-4">
-      <SectionHeading title="Top Brands" />
-    </div>
-
-    <div className="brand-marquee w-full overflow-hidden">
-      <div
-        className="brand-track flex w-max"
-        style={{ "--brand-duration": `${brands.length * 5}s` }}
-      >
-        {[0, 1].map((group) => (
-          <div
-            key={group}
-            className="flex shrink-0 items-center gap-4 pr-4"
-            aria-hidden={group === 1}
-          >
-            {brands.map((brand, index) => (
-              <div
-                key={`${group}-${brand}-${index}`}
-                className="flex h-16 min-w-44 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-gray-300 bg-gray-50 px-8 font-bold text-gray-700 transition hover:border-orange-500 hover:text-orange-500"
-              >
-                {brand}
-              </div>
-            ))}
+      {/* Brands marquee */}
+      {loading ? (
+        <section className="border-y bg-white py-8">
+          <div className="mx-auto max-w-7xl px-4">
+            <Skeleton className="h-16" />
           </div>
-        ))}
-      </div>
-    </div>
-  </section>
-)}
+        </section>
+      ) : (
+        uniqueBrands.length > 0 && (
+          <section className="overflow-hidden border-y bg-white py-8">
+            <div className="mx-auto max-w-7xl px-4">
+              <SectionHeading title="Top Brands" />
+            </div>
+
+            <div className="brand-marquee w-full overflow-hidden">
+              <div
+                className="brand-track flex w-max"
+                style={{ "--brand-duration": `${brands.length * 5}s` }}
+              >
+                {[0, 1].map((group) => (
+                  <div
+                    key={group}
+                    className="flex shrink-0 items-center gap-4 pr-4"
+                    aria-hidden={group === 1}
+                  >
+                    {brands.map((brand, index) => (
+                      <div
+                        key={`${group}-${brand}-${index}`}
+                        className="flex h-16 min-w-44 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-gray-300 bg-gray-50 px-8 font-bold text-gray-700 transition hover:border-orange-500 hover:text-orange-500"
+                      >
+                        {brand}
+                      </div>
+                    ))}
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+        )
+      )}
+
       {/* WhatsApp CTA */}
       <section className="mx-auto max-w-7xl px-4 py-12">
         <div className="rounded-2xl bg-gray-900 p-8 text-center text-white sm:p-12">
@@ -241,8 +239,6 @@ const brands = Array.from({ length: repeatCount }, () => uniqueBrands).flat();
           </a>
         </div>
       </section>
-
-      {/* Footer */}
     </main>
   );
 }
