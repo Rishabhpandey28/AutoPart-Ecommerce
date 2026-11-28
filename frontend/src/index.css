@@ -1,1 +1,25 @@
 @import "tailwindcss";
+
+@keyframes brand-scroll {
+  from {
+    transform: translate3d(0, 0, 0);
+  }
+  to {
+    transform: translate3d(-50%, 0, 0);
+  }
+}
+
+.brand-track {
+  animation: brand-scroll var(--brand-duration, 40s) linear infinite;
+  will-change: transform;
+}
+
+.brand-marquee:hover .brand-track {
+  animation-play-state: paused;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-track {
+    animation: none;
+  }
+}

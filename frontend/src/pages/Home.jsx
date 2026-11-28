@@ -22,9 +22,7 @@ import {
 import ProductCard from "../components/ProductCard";
 // ---- Edit these ----
 // Updated from the dashboard Settings page when the page loads
-let WHATSAPP_NUMBER = "9111518187";
-const waLink = (text) =>
-  `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(text)}`;
+
 
 const ICONS = {
   "Engine Parts": Cog,
@@ -65,25 +63,34 @@ export default function Home() {
   const [categories, setCategories] = useState([]);
   const [, setSettingsLoaded] = useState(false);
 
+  const [whatsappNumber, setWhatsappNumber] = useState("919202960158");
+const waLink = (text) =>
+  `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(text)}`;
+
   useEffect(() => {
     api.get("/products?limit=8").then(setProducts).catch(() => {});
     api.get("/categories").then(setCategories).catch(() => {});
     api
       .get("/settings")
       .then((st) => {
-        if (st.whatsapp) WHATSAPP_NUMBER = st.whatsapp;
+        if (st.whatsapp) {
+  setWhatsappNumber(String(st.whatsapp).replace(/\D/g, ""));
+}
         setSettingsLoaded(true); // re-render with the new number
       })
       .catch(() => {});
   }, []);
-const brands = [
+const uniqueBrands = [
   ...new Set(
-    products
-      .map((product) => product.brand?.trim())
-      .filter(Boolean)
+    products.map((product) => product.brand?.trim()).filter(Boolean)
   ),
-].slice(0, 6);
+];
 
+// Repeat the list so ONE group is always wider than any screen.
+// Each item is ~192px (176px min width + 16px gap), so 16 items is ~3000px.
+const MIN_ITEMS_PER_GROUP = 16;
+const repeatCount = Math.ceil(MIN_ITEMS_PER_GROUP / Math.max(uniqueBrands.length, 1));
+const brands = Array.from({ length: repeatCount }, () => uniqueBrands).flat();
   return (
     <main className="bg-gray-50">
       {/* Hero */}
@@ -185,26 +192,38 @@ const brands = [
       </section>
 
       {/* Brands */}
-   {/* Brands */}
-{brands.length > 0 && (
-  <section className="border-y bg-white">
-    <div className="mx-auto max-w-7xl px-4 py-10">
+{/* Brands Marquee */}
+{uniqueBrands.length > 0 && (
+  <section className="overflow-hidden border-y bg-white py-8">
+    <div className="mx-auto max-w-7xl px-4">
       <SectionHeading title="Top Brands" />
+    </div>
 
-      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-        {brands.map((brand) => (
+    <div className="brand-marquee w-full overflow-hidden">
+      <div
+        className="brand-track flex w-max"
+        style={{ "--brand-duration": `${brands.length * 5}s` }}
+      >
+        {[0, 1].map((group) => (
           <div
-            key={brand}
-            className="flex h-20 items-center justify-center rounded-lg border bg-gray-50 px-3 text-lg font-bold text-gray-700 transition hover:border-orange-500 hover:text-orange-500"
+            key={group}
+            className="flex shrink-0 items-center gap-4 pr-4"
+            aria-hidden={group === 1}
           >
-            {brand}
+            {brands.map((brand, index) => (
+              <div
+                key={`${group}-${brand}-${index}`}
+                className="flex h-16 min-w-44 shrink-0 items-center justify-center whitespace-nowrap rounded-xl border border-gray-300 bg-gray-50 px-8 font-bold text-gray-700 transition hover:border-orange-500 hover:text-orange-500"
+              >
+                {brand}
+              </div>
+            ))}
           </div>
         ))}
       </div>
     </div>
   </section>
 )}
-
       {/* WhatsApp CTA */}
       <section className="mx-auto max-w-7xl px-4 py-12">
         <div className="rounded-2xl bg-gray-900 p-8 text-center text-white sm:p-12">

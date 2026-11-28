@@ -10,9 +10,9 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { useCart } from "../context/CartContext";
-
+import { api } from "../lib/api";
 const BRAND = "EV Auto  Parts";
-const WHATSAPP_NUMBER = "91 92029 60158";
+const WHATSAPP_NUMBER = "919202960158";
 
 const LINKS = [
   { label: "Home", href: "/" },
@@ -29,10 +29,10 @@ export default function Navbar() {
 
   const [mobileOpen, setMobileOpen] = useState(false);
   const [search, setSearch] = useState("");
-
-  const whatsappUrl = `https://wa.me/${WHATSAPP_NUMBER}?text=${encodeURIComponent(
-    "Hi, I want to order auto parts."
-  )}`;
+const [whatsappNumber, setWhatsappNumber] = useState("919202960158");
+const whatsappUrl = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+  "Hi, I want to order auto parts."
+)}`;
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -45,6 +45,24 @@ export default function Navbar() {
       setSearch("");
     }
   }, [location.pathname, location.search]);
+
+  useEffect(() => {
+  const fetchSettings = async () => {
+    try {
+      const settings = await api.get("/settings");
+
+      if (settings.whatsapp) {
+        setWhatsappNumber(
+          String(settings.whatsapp).replace(/\D/g, "")
+        );
+      }
+    } catch (error) {
+      console.error("WhatsApp settings error:", error);
+    }
+  };
+
+  fetchSettings();
+}, []);
 
   const handleSearch = (e) => {
     e.preventDefault();
