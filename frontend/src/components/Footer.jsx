@@ -9,7 +9,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 
-const INSTAGRAM_URL = "https://www.instagram.com/fourfold._creative?dmpr=ZDNlZDc0MzIxNw==";
+const WEBSITE_URL = "https://fourfold-creative.onrender.com/";
 
 export default function Footer() {
   return (
@@ -140,7 +140,7 @@ export default function Footer() {
           <p>
             Website Designed & Developed by{" "}
             <a
-              href={INSTAGRAM_URL}
+              href={WEBSITE_URL}
               target="_blank"
               rel="noopener noreferrer"
               className="font-bold text-orange-500 transition hover:text-orange-400 hover:underline"
