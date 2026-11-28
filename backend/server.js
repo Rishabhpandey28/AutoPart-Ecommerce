@@ -112,6 +112,15 @@ const productData = (body) => {
   return data;
 };
 
+
+app.get("/health", (req, res) => {
+  res.status(200).json({
+    success: true,
+    message: "EV Auto Parts backend is running",
+    timestamp: new Date(),
+  });
+});
+
 // ---------- auth ----------
 app.post("/api/auth/login", loginLimiter, (req, res) => {
   const { email = "", password = "" } = req.body;

@@ -21,7 +21,7 @@ export default function OrderSuccess() {
     Number(price || 0).toLocaleString("en-IN");
 
   const whatsappMessage = `
-Hello EVA Auto Parts,
+Hello EV Auto Parts,
 
 I have placed an order through your website.
 
@@ -131,7 +131,7 @@ Thank you.
           </h2>
 
           <p className="text-sm text-gray-600 mt-2 mb-5">
-            Send your order details to EVA Auto Parts on WhatsApp
+            Send your order details to EV Auto Parts on WhatsApp
             for confirmation.
           </p>
 

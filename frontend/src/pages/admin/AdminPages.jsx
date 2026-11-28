@@ -993,7 +993,7 @@ export function Orders() {
     const message = `
 Hello ${order.customerName || "Customer"},
 
-This is EVA Auto Parts.
+This is EV Auto Parts.
 
 Regarding your order ${orderNo(order)}:
 
@@ -1007,7 +1007,7 @@ ${(order.items || [])
 Order Total: ${inr(order.total)}
 Order Status: ${order.status}
 
-Thank you for shopping with EVA Auto Parts.
+Thank you for shopping with EV Auto Parts.
     `.trim();
 
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;

@@ -19,7 +19,7 @@ export default function Footer() {
         {/* Brand */}
         <div>
           <h2 className="text-2xl font-extrabold">
-            EVA <span className="text-orange-500">AUTO PARTS</span>
+            EV <span className="text-orange-500">AUTO PARTS</span>
           </h2>
 
           <p className="mt-4 max-w-xs text-sm leading-7 text-gray-400">
@@ -133,7 +133,7 @@ export default function Footer() {
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-3 px-6 py-5 text-center text-sm text-gray-400 sm:flex-row">
 
           <p>
-            © {new Date().getFullYear()} EVA Auto Parts.
+            © {new Date().getFullYear()} EV Auto Parts.
             All rights reserved.
           </p>
 
