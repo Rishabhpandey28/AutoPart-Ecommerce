@@ -12,7 +12,7 @@ import {
 import { useCart } from "../context/CartContext";
 
 const BRAND = "EV Auto  Parts";
-const WHATSAPP_NUMBER = "919999999999";
+const WHATSAPP_NUMBER = "91 92029 60158";
 
 const LINKS = [
   { label: "Home", href: "/" },

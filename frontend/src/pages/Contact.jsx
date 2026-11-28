@@ -6,7 +6,7 @@ const TOPICS = ["Part enquiry", "Order help", "Delivery question", "Other"];
 
 const DEFAULTS = {
   storeName: "AutoParts Hub",
-  whatsapp: "919999999999",
+  whatsapp: "+91 92029 60158",
   email: "",
   address: "",
 };

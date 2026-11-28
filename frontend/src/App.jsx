@@ -6,7 +6,7 @@ import {
   Link,
   useLocation,
 } from "react-router-dom";
-
+import Footer from "./components/Footer"
 import { useEffect } from "react";
 
 import Navbar from "./components/Navbar";
@@ -52,6 +52,7 @@ function ShopLayout() {
     <>
     <Navbar />
     <Outlet />
+    <Footer />
     </>
   );
 }

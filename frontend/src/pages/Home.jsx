@@ -35,7 +35,6 @@ const ICONS = {
   "Oils & Fluids": Droplets,
 };
 
-const BRANDS = ["BrakeMax", "FilterPro", "RideSoft", "PowerCell", "BrightBeam", "LubeX"];
 
 const FEATURES = [
   { icon: Truck, title: "Fast Delivery", text: "Quick dispatch across the country" },
@@ -43,6 +42,8 @@ const FEATURES = [
   { icon: BadgePercent, title: "Best Prices", text: "Wholesale-level rates for everyone" },
   { icon: Headphones, title: "Expert Help", text: "Find the right part for your vehicle" },
 ];
+
+
 // --------------------
 
 function SectionHeading({ title, link }) {
@@ -75,6 +76,13 @@ export default function Home() {
       })
       .catch(() => {});
   }, []);
+const brands = [
+  ...new Set(
+    products
+      .map((product) => product.brand?.trim())
+      .filter(Boolean)
+  ),
+].slice(0, 6);
 
   return (
     <main className="bg-gray-50">
@@ -177,21 +185,25 @@ export default function Home() {
       </section>
 
       {/* Brands */}
-      <section className="border-y bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-10">
-          <SectionHeading title="Top Brands" />
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
-            {BRANDS.map((b) => (
-              <div
-                key={b}
-                className="flex h-20 items-center justify-center rounded-lg border bg-gray-50 text-lg font-bold text-gray-400 transition hover:text-orange-500"
-              >
-                {b}
-              </div>
-            ))}
+   {/* Brands */}
+{brands.length > 0 && (
+  <section className="border-y bg-white">
+    <div className="mx-auto max-w-7xl px-4 py-10">
+      <SectionHeading title="Top Brands" />
+
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+        {brands.map((brand) => (
+          <div
+            key={brand}
+            className="flex h-20 items-center justify-center rounded-lg border bg-gray-50 px-3 text-lg font-bold text-gray-700 transition hover:border-orange-500 hover:text-orange-500"
+          >
+            {brand}
           </div>
-        </div>
-      </section>
+        ))}
+      </div>
+    </div>
+  </section>
+)}
 
       {/* WhatsApp CTA */}
       <section className="mx-auto max-w-7xl px-4 py-12">
@@ -212,42 +224,6 @@ export default function Home() {
       </section>
 
       {/* Footer */}
-      <footer className="bg-gray-900 text-gray-300">
-        <div className="mx-auto grid max-w-7xl gap-8 px-4 py-10 sm:grid-cols-2 lg:grid-cols-4">
-          <div>
-            <h3 className="text-lg font-bold text-white">AutoParts Hub</h3>
-            <p className="mt-2 text-sm text-gray-400">Quality auto parts at honest prices, delivered to your door.</p>
-          </div>
-          <div>
-            <h4 className="font-semibold text-white">Shop</h4>
-            <ul className="mt-2 space-y-1 text-sm">
-              {categories.slice(0, 4).map((c) => (
-                <li key={c._id}><a href="#" className="hover:text-orange-400">{c.name}</a></li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-white">Help</h4>
-            <ul className="mt-2 space-y-1 text-sm">
-              <li><a href="#" className="hover:text-orange-400">Shipping & Delivery</a></li>
-              <li><a href="#" className="hover:text-orange-400">Returns</a></li>
-              <li><a href="#" className="hover:text-orange-400">FAQs</a></li>
-              <li><a href="/contact" className="hover:text-orange-400">Contact Us</a></li>
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold text-white">Contact</h4>
-            <ul className="mt-2 space-y-2 text-sm">
-              <li className="flex items-center gap-2"><Phone size={14} /> +{WHATSAPP_NUMBER}</li>
-              <li className="flex items-center gap-2"><Mail size={14} /> hello@autopartshub.com</li>
-              <li className="flex items-center gap-2"><MapPin size={14} /> Your city, State</li>
-            </ul>
-          </div>
-        </div>
-        <div className="border-t border-gray-800 py-4 text-center text-xs text-gray-500">
-          © {new Date().getFullYear()} AutoParts Hub. All rights reserved.
-        </div>
-      </footer>
     </main>
   );
 }

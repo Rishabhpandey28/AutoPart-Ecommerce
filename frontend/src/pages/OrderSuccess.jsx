@@ -8,7 +8,7 @@ import {
   Copy,
 } from "lucide-react";
 
-const WHATSAPP_NUMBER = "9111518187"; // Replace with owner's WhatsApp number
+const WHATSAPP_NUMBER = "9202960158"; // Replace with owner's WhatsApp number
 
 export default function OrderSuccess() {
   const { id } = useParams();
